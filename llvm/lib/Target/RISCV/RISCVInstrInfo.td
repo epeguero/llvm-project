@@ -455,6 +455,14 @@ def SLLI : Shift_ri<0, 0b001, "slli">;
 def SRLI : Shift_ri<0, 0b101, "srli">;
 def SRAI : Shift_ri<1, 0b101, "srai">;
 
+/* // Custom VISSUE Instruction for HBIR */
+/* // opcode = 0x77 (0b1110111) */
+/* // func3, rd, rs1, simm12 */
+def OPC_VISSUE : RISCVOpcode<0b1110111>;
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def VISSUE : RVInstI<0, OPC_VISSUE, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12), "vissue", "$rd, $rs1, $imm12">,
+      Sched<[WriteIALU, ReadIALU]>;
+
 def ADD  : ALU_rr<0b0000000, 0b000, "add">, Sched<[WriteIALU, ReadIALU, ReadIALU]>;
 def SUB  : ALU_rr<0b0100000, 0b000, "sub">, Sched<[WriteIALU, ReadIALU, ReadIALU]>;
 def SLL  : ALU_rr<0b0000000, 0b001, "sll">, Sched<[WriteIALU, ReadIALU, ReadIALU]>;
@@ -734,6 +742,9 @@ def : InstAlias<"sh $rs2, (${rs1})",
 def : InstAlias<"sw $rs2, (${rs1})",
                 (SW  GPR:$rs2, GPR:$rs1, 0)>;
 
+// HBIR instructions
+def : InstAlias<"vissue $rd, $rs1, $imm12",
+                (ADDI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
 def : InstAlias<"add $rd, $rs1, $imm12",
                 (ADDI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
 def : InstAlias<"and $rd, $rs1, $imm12",
