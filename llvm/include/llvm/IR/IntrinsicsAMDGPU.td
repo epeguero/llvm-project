@@ -1371,8 +1371,8 @@ def int_amdgcn_writelane :
   [IntrNoMem, IntrConvergent]
 >;
 
-def int_amdgcn_alignbit :
-  GCCBuiltin<"__builtin_amdgcn_alignbit">, Intrinsic<[llvm_i32_ty],
+// FIXME: Deprecated. This is equivalent to llvm.fshr
+def int_amdgcn_alignbit : Intrinsic<[llvm_i32_ty],
   [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
   [IntrNoMem, IntrSpeculatable]
 >;
@@ -1873,6 +1873,12 @@ def int_amdgcn_unreachable : Intrinsic<[], [], [IntrConvergent]>;
 // pass based on !fpmath metadata.
 def int_amdgcn_fdiv_fast : Intrinsic<
   [llvm_float_ty], [llvm_float_ty, llvm_float_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+// Represent a relocation constant.
+def int_amdgcn_reloc_constant : Intrinsic<
+  [llvm_i32_ty], [llvm_metadata_ty],
   [IntrNoMem, IntrSpeculatable]
 >;
 }

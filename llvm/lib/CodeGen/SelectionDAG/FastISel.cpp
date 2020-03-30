@@ -225,6 +225,21 @@ static bool isRegUsedByPhiNodes(unsigned DefReg,
   return false;
 }
 
+static bool isTerminatingEHLabel(MachineBasicBlock *MBB, MachineInstr &MI) {
+  // Ignore non-EH labels.
+  if (!MI.isEHLabel())
+    return false;
+
+  // Any EH label outside a landing pad must be for an invoke. Consider it a
+  // terminator.
+  if (!MBB->isEHPad())
+    return true;
+
+  // If this is a landingpad, the first non-phi instruction will be an EH_LABEL.
+  // Don't consider that label to be a terminator.
+  return MI.getIterator() != MBB->getFirstNonPHI();
+}
+
 /// Build a map of instruction orders. Return the first terminator and its
 /// order. Consider EH_LABEL instructions to be terminators as well, since local
 /// values for phis after invokes must be materialized before the call.
@@ -233,7 +248,7 @@ void FastISel::InstOrderMap::initialize(
   unsigned Order = 0;
   for (MachineInstr &I : *MBB) {
     if (!FirstTerminator &&
-        (I.isTerminator() || (I.isEHLabel() && &I != &MBB->front()))) {
+        (I.isTerminator() || isTerminatingEHLabel(MBB, I))) {
       FirstTerminator = &I;
       FirstTerminatorOrder = Order;
     }
@@ -1572,6 +1587,27 @@ bool FastISel::selectBitCast(const User *I) {
   return true;
 }
 
+bool FastISel::selectFreeze(const User *I) {
+  Register Reg = getRegForValue(I->getOperand(0));
+  if (!Reg)
+    // Unhandled operand.
+    return false;
+
+  EVT ETy = TLI.getValueType(DL, I->getOperand(0)->getType());
+  if (ETy == MVT::Other || !TLI.isTypeLegal(ETy))
+    // Unhandled type, bail out.
+    return false;
+
+  MVT Ty = ETy.getSimpleVT();
+  const TargetRegisterClass *TyRegClass = TLI.getRegClassFor(Ty);
+  Register ResultReg = createResultReg(TyRegClass);
+  BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
+          TII.get(TargetOpcode::COPY), ResultReg).addReg(Reg);
+
+  updateValueMap(I, ResultReg);
+  return true;
+}
+
 // Remove local value instructions starting from the instruction after
 // SavedLastLocalValue to the current function insert point.
 void FastISel::removeDeadLocalValueCode(MachineInstr *SavedLastLocalValue)
@@ -1912,6 +1948,9 @@ bool FastISel::selectOperator(const User *I, unsigned Opcode) {
 
   case Instruction::ExtractValue:
     return selectExtractValue(I);
+
+  case Instruction::Freeze:
+    return selectFreeze(I);
 
   case Instruction::PHI:
     llvm_unreachable("FastISel shouldn't visit PHI nodes!");
